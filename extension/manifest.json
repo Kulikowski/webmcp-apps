@@ -1,0 +1,29 @@
+{
+  "manifest_version": 3,
+  "minimum_chrome_version": "114",
+  "name": "Form / Factor Agent",
+  "version": "1.0.0",
+  "description": "Renders the MCP-App-like sidecar returned by a WebMCP tool and writes results back to the page.",
+  "action": {
+    "default_title": "Open training agent"
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["http://localhost:8787/*"],
+      "js": ["content-script.js"],
+      "run_at": "document_start"
+    }
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'; frame-src http://localhost:8787"
+  },
+  "host_permissions": ["http://localhost:8787/*"],
+  "permissions": ["activeTab", "scripting", "sidePanel", "tabs"],
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  }
+}

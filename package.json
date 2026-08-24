@@ -1,0 +1,19 @@
+{
+  "name": "webmcp-app-descriptor",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs",
+    "test": "node --test",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "dependencies": {
+    "express": "^5.2.1"
+  },
+  "devDependencies": {
+    "prettier": "3.9.6"
+  },
+  "license": "MIT"
+}

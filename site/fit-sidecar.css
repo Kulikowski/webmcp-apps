@@ -1,0 +1,344 @@
+:root {
+  color-scheme: light;
+  --background: #ffffff;
+  --foreground: #18181b;
+  --muted: #f4f4f5;
+  --muted-foreground: #52525b;
+  --border: #e4e4e7;
+  --card: #fafafa;
+  --accent: #2563eb;
+  --accent-pale: #eff6ff;
+  --selection: #dbeafe;
+  --font-sans: Geist, Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "Geist Mono", "SFMono-Regular", Consolas, ui-monospace, monospace;
+  font-family: var(--font-sans);
+  color: var(--foreground);
+  background: var(--background);
+  accent-color: var(--accent);
+}
+
+html {
+  box-sizing: border-box;
+}
+:where(body, header, main, footer, section, div, fieldset, label, figure, button, input, dl) {
+  box-sizing: inherit;
+}
+body {
+  min-inline-size: 17.5rem;
+  margin: 0;
+  background: var(--background);
+  color: var(--foreground);
+  -webkit-font-smoothing: antialiased;
+}
+button,
+input {
+  font: inherit;
+}
+::selection {
+  background: var(--selection);
+}
+
+.app-header {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.1rem 1.25rem;
+  border-block-end: 1px solid var(--border);
+  background: var(--background);
+}
+.kicker {
+  margin: 0 0 0.35rem;
+  color: var(--accent);
+  font: 500 0.625rem/1.2 var(--font-mono);
+}
+h1,
+h2 {
+  margin: 0;
+  letter-spacing: -0.025em;
+}
+h1 {
+  font-size: 1.125rem;
+  font-weight: 600;
+  line-height: 1.1;
+}
+h2 {
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+fieldset,
+.mix-section {
+  margin: 0;
+  padding: 1.25rem;
+  border: 0;
+  border-block-end: 1px solid var(--border);
+}
+legend {
+  padding: 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+.fieldset-copy,
+.mix-help {
+  margin: 0.4rem 0 1rem;
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
+  line-height: 1.5;
+  text-wrap: pretty;
+}
+.measurement-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.8rem;
+}
+.measurement-label {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.35rem;
+}
+.measurement-label label {
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
+}
+.measurement-label output {
+  color: var(--foreground);
+  font: 0.625rem var(--font-mono);
+  white-space: nowrap;
+}
+input[type="range"] {
+  inline-size: 100%;
+  min-block-size: 2.5rem;
+  margin: 0;
+  cursor: pointer;
+}
+
+.room-options {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+.room-option {
+  position: relative;
+  min-block-size: 5rem;
+  display: grid;
+  align-content: end;
+  gap: 0.2rem;
+  padding: 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 0.6rem;
+  background: var(--background);
+  cursor: pointer;
+}
+.room-option:has(input:checked) {
+  border-color: color-mix(in oklab, var(--accent) 55%, var(--border));
+  background: var(--accent-pale);
+}
+.room-option:has(input:focus-visible) {
+  outline: 3px solid color-mix(in oklab, var(--accent) 70%, transparent);
+  outline-offset: 3px;
+}
+.room-option input {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+.room-option strong {
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.room-option small {
+  color: var(--muted-foreground);
+  font: 0.5625rem/1.35 var(--font-mono);
+}
+.room-icon {
+  position: absolute;
+  inset: 0.7rem auto auto 0.7rem;
+  block-size: 0.75rem;
+  border: 1px solid var(--foreground);
+  border-radius: 0.15rem;
+}
+.room-icon-compact {
+  inline-size: 1.1rem;
+}
+.room-icon-standard {
+  inline-size: 1.8rem;
+}
+.room-icon-dedicated {
+  inline-size: 2.5rem;
+}
+
+.section-title {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.mix-total {
+  color: var(--muted-foreground);
+  font: 0.625rem var(--font-mono);
+}
+figure {
+  margin: 0;
+}
+.triangle-wrap {
+  position: relative;
+  max-inline-size: 18rem;
+  margin: 0.35rem auto 0;
+  padding: 1.35rem 2.8rem 1.6rem;
+}
+.mix-triangle {
+  position: relative;
+  display: block;
+  inline-size: 100%;
+  aspect-ratio: 1.22;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: crosshair;
+  touch-action: none;
+}
+.triangle-fill {
+  position: absolute;
+  inset: 0;
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+  background: linear-gradient(145deg, #dbeafe, var(--muted) 58%, #e0e7ff);
+}
+.triangle-fill::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  clip-path: polygon(
+    50% 0,
+    100% 100%,
+    0 100%,
+    50% 0,
+    50% 2px,
+    2px calc(100% - 2px),
+    calc(100% - 2px) calc(100% - 2px),
+    50% 2px
+  );
+  background: var(--border);
+}
+.mix-triangle:focus-visible {
+  outline: 3px solid color-mix(in oklab, var(--accent) 70%, transparent);
+  outline-offset: 4px;
+}
+.mix-target {
+  position: absolute;
+  z-index: 2;
+  inline-size: 1rem;
+  aspect-ratio: 1;
+  border: 2px solid var(--background);
+  border-radius: 50%;
+  background: var(--accent);
+  translate: -50% -50%;
+  pointer-events: none;
+  box-shadow: 0 0 0 1px var(--foreground);
+}
+.mix-target::after {
+  content: none;
+}
+.vertex {
+  position: absolute;
+  color: var(--muted-foreground);
+  font: 0.5625rem var(--font-mono);
+}
+.vertex-variety {
+  inset: 0 auto auto 50%;
+  translate: -50% 0;
+}
+.vertex-strength {
+  inset: auto auto 0 0;
+}
+.vertex-convenience {
+  inset: auto 0 0 auto;
+}
+.mix-readout {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
+  margin: 0.75rem 0 0;
+  padding: 1px;
+  background: var(--border);
+}
+.mix-readout div {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.4rem;
+  padding: 0.55rem;
+  background: var(--background);
+}
+.mix-readout dt {
+  color: var(--muted-foreground);
+  font-size: 0.625rem;
+}
+.mix-readout dd {
+  margin: 0;
+  color: var(--foreground);
+  font: 0.625rem var(--font-mono);
+}
+figcaption {
+  margin-block-start: 0.7rem;
+  color: var(--muted-foreground);
+  font-size: 0.6875rem;
+  line-height: 1.45;
+  text-align: center;
+}
+
+.page-output-note {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.8rem 1.25rem;
+  border-block-start: 1px solid var(--border);
+  color: var(--muted-foreground);
+  background: var(--card);
+  font-size: 0.75rem;
+  line-height: 1.45;
+}
+.page-output-note > span:first-child {
+  color: var(--accent);
+  font: 500 0.875rem var(--font-mono);
+}
+
+:where(button, input):focus-visible {
+  outline: 3px solid color-mix(in oklab, var(--accent) 70%, transparent);
+  outline-offset: 3px;
+}
+.visually-hidden {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (max-width: 24rem) {
+  .measurement-grid {
+    grid-template-columns: 1fr;
+  }
+  .room-option {
+    padding-inline: 0.5rem;
+  }
+  .room-icon {
+    inset-inline-start: 0.5rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}

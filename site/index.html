@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#ffffff" />
+    <meta name="description" content="A WebMCP tool that returns an MCP-App-like UI descriptor." />
+    <title>Form / Factor — home gym equipment</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#result">Skip to recommendation</a>
+    <header class="site-header">
+      <a class="site-brand" href="/">form/factor<span>.lab</span></a>
+    </header>
+
+    <main id="result" class="page" tabindex="-1">
+      <section class="page-intro">
+        <p class="eyebrow">WebMCP website</p>
+        <h1>Choose equipment for the room you have.</h1>
+        <p>
+          Ask the extension agent to open the fit controls. Controls live in the side panel; your
+          inputs update the page state and the recommendation changes here.
+        </p>
+      </section>
+
+      <section class="result-stage" aria-labelledby="recommendation-name" aria-live="polite">
+        <div class="result-visual">
+          <img
+            class="stage-photo"
+            id="stage-photo"
+            src="/assets/equipment/folding-rack.jpg"
+            alt="Folding wall rack product photograph"
+            width="1024"
+            height="1024"
+            fetchpriority="high"
+          />
+          <span class="dimension" id="visual-footprint">1.2 m² floor</span>
+        </div>
+        <div class="result-copy">
+          <div class="result-kicker">
+            <span>Current recommendation</span
+            ><span class="revision" id="result-revision">Starting point</span>
+          </div>
+          <p class="product-code" id="recommendation-code">FR-21</p>
+          <h2 id="recommendation-name">Folding wall rack</h2>
+          <p class="result-reason" id="recommendation-reason">
+            A balanced starting point for a standard room and mixed training.
+          </p>
+        </div>
+        <dl class="result-specs">
+          <div>
+            <dt>Room</dt>
+            <dd id="room-summary">Standard</dd>
+          </div>
+          <div>
+            <dt>Training mix</dt>
+            <dd id="mix-summary">Strength 45 · Variety 35 · Convenience 20</dd>
+          </div>
+          <div>
+            <dt>Body profile</dt>
+            <dd id="profile-summary">178 cm · 78 kg · age 34</dd>
+          </div>
+          <div>
+            <dt>Planning load</dt>
+            <dd id="load-summary">101 kg</dd>
+          </div>
+        </dl>
+      </section>
+    </main>
+
+    <footer>
+      <span>Form / Factor protocol demo</span><span>Illustrative recommendations</span>
+    </footer>
+
+    <script src="/app.js" type="module"></script>
+  </body>
+</html>

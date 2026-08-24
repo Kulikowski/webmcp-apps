@@ -1,0 +1,333 @@
+﻿const PAGE_ORIGIN = "http://localhost:8787";
+const APP_RESOURCE_URI = "ui://form-factor/equipment-fit";
+const PROTOCOL_VERSION = "2026-01-26";
+const OPEN_TOOL = "gym_open_fit_sidecar";
+const ALLOWED_APP_TOOLS = new Set(["gym_update_profile", "gym_set_preferences"]);
+
+const elements = {
+  announcer: document.querySelector("#announcer"),
+  composer: document.querySelector("#composer"),
+  connection: document.querySelector("#connection-state"),
+  conversation: document.querySelector("#conversation"),
+  closeTool: document.querySelector("#close-tool"),
+  frame: document.querySelector("#app-frame"),
+  messages: document.querySelector("#messages"),
+  origin: document.querySelector("#page-origin"),
+  prompt: document.querySelector("#prompt"),
+  suggestions: document.querySelector("#suggestions"),
+  toolStatus: document.querySelector("#tool-status"),
+  toolSurface: document.querySelector("#tool-surface"),
+};
+
+let activeTab = null;
+let pageReady = false;
+let appDescriptor = null;
+let appResult = null;
+let appReady = false;
+let updateTimer = null;
+let generation = 0;
+let documentToken = null;
+
+function setConnection(label, state) {
+  elements.connection.querySelector("span").textContent = label;
+  elements.connection.dataset.state = state;
+}
+
+function addMessage(role, text) {
+  const item = document.createElement("li");
+  item.className = `message message-${role}`;
+  const speaker = document.createElement("span");
+  speaker.className = "speaker";
+  speaker.textContent = role === "user" ? "You" : "Agent";
+  const bubble = document.createElement("div");
+  bubble.className = "bubble";
+  const copy = document.createElement("p");
+  copy.textContent = text;
+  bubble.append(copy);
+  item.append(speaker, bubble);
+  elements.messages.insertBefore(item, elements.toolSurface);
+  elements.conversation.scrollTo({ top: elements.conversation.scrollHeight, behavior: "smooth" });
+}
+
+async function currentTab() {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!tab?.id || !tab.url) throw new Error("No active browser tab is available.");
+  return tab;
+}
+
+function receiverMissing(error) {
+  return /Receiving end does not exist|Could not establish connection/i.test(error?.message ?? "");
+}
+
+async function sendToPage(message, tab = activeTab, token = documentToken) {
+  if (!tab?.id) throw new Error("No connected page.");
+  const epoch = generation;
+  message = { ...message, documentToken: token };
+  let response;
+  try {
+    response = await chrome.tabs.sendMessage(tab.id, message, { frameId: 0 });
+  } catch (error) {
+    if (!receiverMissing(error) || new URL(tab.url).origin !== PAGE_ORIGIN) throw error;
+    await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      files: ["content-script.js"],
+    });
+    response = await chrome.tabs.sendMessage(tab.id, message, { frameId: 0 });
+  }
+  if (epoch !== generation) throw new Error("The page connection changed.");
+  if (!response?.ok) throw new Error(response?.error ?? "The page bridge did not respond.");
+  return response.result;
+}
+
+function validateAppResult(result) {
+  if (!result || typeof result !== "object" || Array.isArray(result))
+    throw new Error("The WebMCP tool did not return an App result.");
+  const ui = result._meta?.ui;
+  if (!ui || typeof ui !== "object")
+    throw new Error("The WebMCP result has no MCP-App-like UI descriptor.");
+  if (ui.resourceUri !== APP_RESOURCE_URI || ui.mimeType !== "text/html;profile=mcp-app")
+    throw new Error("The returned App resource was not recognized.");
+  const resourceUrl = new URL(ui.resourceUrl);
+  if (
+    resourceUrl.origin !== PAGE_ORIGIN ||
+    resourceUrl.pathname !== "/fit-sidecar.html" ||
+    resourceUrl.search ||
+    resourceUrl.hash ||
+    resourceUrl.username ||
+    resourceUrl.password
+  )
+    throw new Error("The returned App URL was not approved.");
+  if (
+    !Array.isArray(ui.allowedPageTools) ||
+    ui.allowedPageTools.some((name) => !ALLOWED_APP_TOOLS.has(name))
+  )
+    throw new Error("The App requested a page tool outside the allowlist.");
+  return ui;
+}
+
+function toApp(message) {
+  elements.frame.contentWindow?.postMessage(message, "*");
+}
+
+// The app opens the handshake and the host answers, which is the direction the
+// MCP Apps lifecycle specifies.
+function answerInitialize(id) {
+  toApp({
+    jsonrpc: "2.0",
+    id,
+    result: {
+      protocolVersion: PROTOCOL_VERSION,
+      hostInfo: { name: "Form / Factor agent", version: "1.0.0" },
+      hostCapabilities: { serverTools: {} },
+      hostContext: { theme: "light", displayMode: "inline", platform: "web" },
+    },
+  });
+}
+
+// tool-input is sent once and carries the arguments the tool was called with.
+// tool-result carries the CallToolResult itself.
+function sendToolData(result) {
+  if (!result) return;
+  toApp({ jsonrpc: "2.0", method: "ui/notifications/tool-input", params: { arguments: {} } });
+  toApp({
+    jsonrpc: "2.0",
+    method: "ui/notifications/tool-result",
+    params: { content: result.content, structuredContent: result.structuredContent },
+  });
+}
+
+async function connect() {
+  resetToolSurface();
+  pageReady = false;
+  documentToken = null;
+  const epoch = generation;
+  setConnection("Connecting", "pending");
+  try {
+    const tab = await currentTab();
+    if (epoch !== generation) return;
+    activeTab = tab;
+    const origin = new URL(tab.url).origin;
+    elements.origin.textContent = origin;
+    if (origin !== PAGE_ORIGIN) throw new Error(`Open ${PAGE_ORIGIN} to use the training agent.`);
+    const discovery = await sendToPage({ type: "LIST_TOOLS" }, tab, null);
+    if (epoch !== generation) return;
+    if (!discovery.tools?.some((tool) => tool.name === OPEN_TOOL))
+      throw new Error("This page does not expose equipment-fit controls.");
+    documentToken = discovery.documentToken;
+    pageReady = true;
+    setConnection(discovery.transport, "ready");
+    elements.origin.textContent = `${origin} - ${discovery.transport}`;
+  } catch (error) {
+    if (epoch === generation) connectFailed(error);
+  }
+}
+
+function resetToolSurface() {
+  generation++;
+  clearTimeout(updateTimer);
+  appReady = false;
+  appDescriptor = null;
+  appResult = null;
+  elements.frame.removeAttribute("src");
+  elements.toolSurface.hidden = true;
+  elements.suggestions.hidden = false;
+}
+
+function connectFailed(error) {
+  pageReady = false;
+  resetToolSurface();
+  setConnection("No page", "error");
+  elements.origin.textContent = error instanceof Error ? error.message : String(error);
+}
+
+async function openFitTool() {
+  if (!pageReady) await connect();
+  if (!pageReady) return;
+  resetToolSurface();
+  const epoch = generation;
+  elements.suggestions.hidden = true;
+  elements.toolSurface.hidden = false;
+  elements.toolStatus.textContent = "Opening controls...";
+  elements.conversation.scrollTo({ top: elements.conversation.scrollHeight, behavior: "smooth" });
+  try {
+    const result = await sendToPage({ type: "CALL_TOOL", name: OPEN_TOOL, arguments: {} });
+    if (epoch !== generation) return;
+    appDescriptor = validateAppResult(result);
+    appResult = result;
+    appReady = false;
+    elements.toolStatus.textContent = "Controls loading";
+    elements.frame.src = appDescriptor.resourceUrl;
+    elements.announcer.textContent =
+      "Equipment fit controls opened. Results will appear on the website.";
+  } catch (error) {
+    if (epoch !== generation) return;
+    addMessage("agent", error.message);
+    connectFailed(error);
+  }
+}
+
+async function handlePrompt(prompt) {
+  const text = prompt.trim();
+  if (!text) return;
+  addMessage("user", text);
+  elements.suggestions.hidden = true;
+  elements.prompt.value = "";
+  if (/equipment|fit|home gym|recommend|choose|controls/i.test(text)) {
+    addMessage(
+      "agent",
+      "I’ll use this page’s equipment-fit tool. Adjust the controls below; I’ll place the recommendation on the website.",
+    );
+    await openFitTool();
+  } else {
+    addMessage(
+      "agent",
+      "I can help choose equipment from this page. Ask me to open the fit controls and I’ll use the page’s WebMCP tool.",
+    );
+  }
+}
+
+window.addEventListener("message", async (event) => {
+  if (event.source !== elements.frame.contentWindow || event.data?.jsonrpc !== "2.0") return;
+  const data = event.data;
+  const epoch = generation;
+  if (!appDescriptor) return;
+  if (data.method === "ui/initialize") {
+    if (data.params?.protocolVersion !== PROTOCOL_VERSION) {
+      toApp({
+        jsonrpc: "2.0",
+        id: data.id,
+        error: { code: -32602, message: "Unsupported protocol version" },
+      });
+      return;
+    }
+    answerInitialize(data.id);
+  } else if (data.method === "ui/notifications/initialized") {
+    appReady = true;
+    elements.toolStatus.textContent = "Controls ready - changes appear on website";
+    sendToolData(appResult);
+  } else if (data.method === "tools/call") {
+    try {
+      if (
+        !appReady ||
+        !ALLOWED_APP_TOOLS.has(data.params?.name) ||
+        !appDescriptor.allowedPageTools.includes(data.params.name)
+      )
+        throw new Error("That page tool is not available to this App.");
+      const result = await sendToPage({
+        type: "CALL_TOOL",
+        name: data.params.name,
+        arguments: data.params.arguments ?? {},
+      });
+      if (epoch !== generation) return;
+      toApp({ jsonrpc: "2.0", id: data.id, result });
+      elements.toolStatus.textContent = `Website updated - revision ${result.revision}`;
+      clearTimeout(updateTimer);
+      updateTimer = setTimeout(() => {
+        elements.toolStatus.textContent = "Controls ready - changes appear on website";
+      }, 1800);
+    } catch (error) {
+      if (epoch !== generation) return;
+      toApp({ jsonrpc: "2.0", id: data.id, error: { code: -32000, message: error.message } });
+      elements.toolStatus.textContent = "Page update failed";
+    }
+  }
+});
+
+// Fresh page state reaches the app as another tool-result, which is how the
+// host pushes updated data in MCP Apps. There is no separate "context" method.
+chrome.runtime.onMessage.addListener((message, sender) => {
+  if (
+    message.type !== "PAGE_CONTEXT_CHANGED" ||
+    !appDescriptor ||
+    sender.tab?.id !== activeTab?.id ||
+    sender.frameId !== 0 ||
+    message.documentToken !== documentToken
+  )
+    return;
+  if (appResult?.structuredContent?.revision > message.state?.revision) return;
+  if (appResult) appResult = { ...appResult, structuredContent: message.state };
+  if (!appReady) return;
+  toApp({
+    jsonrpc: "2.0",
+    method: "ui/notifications/tool-result",
+    params: {
+      content: [{ type: "text", text: "Page state updated." }],
+      structuredContent: message.state,
+    },
+  });
+});
+
+elements.composer.addEventListener("submit", (event) => {
+  event.preventDefault();
+  handlePrompt(elements.prompt.value);
+});
+elements.prompt.addEventListener("keydown", (event) => {
+  if (event.key === "Enter" && !event.shiftKey) {
+    event.preventDefault();
+    elements.composer.requestSubmit();
+  }
+});
+elements.suggestions.addEventListener("click", (event) => {
+  const button = event.target.closest("button[data-prompt]");
+  if (button) handlePrompt(button.dataset.prompt);
+});
+elements.closeTool.addEventListener("click", () => {
+  resetToolSurface();
+  addMessage("agent", "Fit controls closed. The last recommendation remains on the website.");
+});
+chrome.tabs.onActivated.addListener(() => {
+  resetToolSurface();
+  connect().catch(connectFailed);
+});
+chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
+  if (tabId === activeTab?.id && changeInfo.status === "loading") {
+    resetToolSurface();
+    pageReady = false;
+    documentToken = null;
+    setConnection("Page navigating", "pending");
+  } else if (tabId === activeTab?.id && changeInfo.status === "complete") {
+    connect();
+  }
+});
+
+connect().catch(connectFailed);

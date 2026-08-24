@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Equipment fit controls</title>
+    <link rel="stylesheet" href="/fit-sidecar.css" />
+  </head>
+  <body>
+    <header class="app-header">
+      <div>
+        <p class="kicker">Equipment fit</p>
+        <h1>Shape the recommendation</h1>
+      </div>
+      <span class="sync-state visually-hidden" id="sync-state">Connecting</span>
+    </header>
+
+    <main>
+      <form id="fit-form">
+        <fieldset class="profile-fieldset">
+          <legend>Body profile</legend>
+          <p class="fieldset-copy">
+            Weight and age alter the illustrative planning load. Height is shown in the profile.
+          </p>
+
+          <div class="measurement-grid">
+            <div class="measurement">
+              <div class="measurement-label">
+                <label for="height">Height</label
+                ><output for="height" id="height-output">178 cm</output>
+              </div>
+              <input
+                id="height"
+                name="height"
+                type="range"
+                min="145"
+                max="210"
+                value="178"
+                step="1"
+              />
+            </div>
+            <div class="measurement">
+              <div class="measurement-label">
+                <label for="weight">Weight</label
+                ><output for="weight" id="weight-output">78 kg</output>
+              </div>
+              <input
+                id="weight"
+                name="weight"
+                type="range"
+                min="45"
+                max="160"
+                value="78"
+                step="1"
+              />
+            </div>
+            <div class="measurement">
+              <div class="measurement-label">
+                <label for="age">Age</label><output for="age" id="age-output">34</output>
+              </div>
+              <input id="age" name="age" type="range" min="18" max="80" value="34" step="1" />
+            </div>
+          </div>
+        </fieldset>
+
+        <fieldset class="room-fieldset">
+          <legend>Available room</legend>
+          <p class="fieldset-copy">Pick the largest footprint you can leave available.</p>
+          <div class="room-options">
+            <label class="room-option" for="room-compact">
+              <input id="room-compact" name="room" type="radio" value="compact" />
+              <span class="room-icon room-icon-compact" aria-hidden="true"></span>
+              <strong>Compact</strong>
+              <small>up to 0.6 m²</small>
+            </label>
+            <label class="room-option" for="room-standard">
+              <input id="room-standard" name="room" type="radio" value="standard" checked />
+              <span class="room-icon room-icon-standard" aria-hidden="true"></span>
+              <strong>Standard</strong>
+              <small>up to 1.8 m²</small>
+            </label>
+            <label class="room-option" for="room-dedicated">
+              <input id="room-dedicated" name="room" type="radio" value="dedicated" />
+              <span class="room-icon room-icon-dedicated" aria-hidden="true"></span>
+              <strong>Dedicated</strong>
+              <small>2.4 m² or more</small>
+            </label>
+          </div>
+        </fieldset>
+      </form>
+
+      <section class="mix-section" aria-labelledby="mix-title">
+        <div class="section-title">
+          <div>
+            <p class="kicker">Click instead of describe</p>
+            <h2 id="mix-title">Training mix</h2>
+          </div>
+          <span class="mix-total">100 points</span>
+        </div>
+        <p class="mix-help" id="mix-help">
+          Click inside the triangle. Arrow keys move the target; hold Shift for larger steps.
+        </p>
+        <figure>
+          <div class="triangle-wrap">
+            <button
+              class="mix-triangle"
+              id="mix-triangle"
+              type="button"
+              aria-labelledby="mix-title"
+              aria-describedby="mix-help mix-summary"
+            >
+              <span class="triangle-fill" aria-hidden="true"></span>
+              <span class="mix-target" id="mix-target" aria-hidden="true"></span>
+            </button>
+            <span class="vertex vertex-variety">Variety</span>
+            <span class="vertex vertex-strength">Strength</span>
+            <span class="vertex vertex-convenience">Convenience</span>
+          </div>
+          <dl class="mix-readout" aria-label="Current training mix">
+            <div>
+              <dt>Strength</dt>
+              <dd id="strength-value">45</dd>
+            </div>
+            <div>
+              <dt>Variety</dt>
+              <dd id="variety-value">35</dd>
+            </div>
+            <div>
+              <dt>Convenience</dt>
+              <dd id="convenience-value">20</dd>
+            </div>
+          </dl>
+          <figcaption id="mix-summary">Strength leads, with variety close behind.</figcaption>
+        </figure>
+      </section>
+    </main>
+
+    <footer class="page-output-note">
+      <span aria-hidden="true">←</span>
+      <span>Changes appear on the website.</span>
+    </footer>
+    <div class="visually-hidden" aria-live="polite" id="announcer"></div>
+    <script src="/fit-sidecar.js"></script>
+  </body>
+</html>

@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Form / Factor agent</title>
+    <link rel="stylesheet" href="sidepanel.css" />
+  </head>
+  <body>
+    <header class="panel-header">
+      <div class="agent-identity">
+        <span class="brand-label">form/factor<span>.lab</span></span>
+        <strong>Scripted demo agent</strong>
+      </div>
+      <span class="visually-hidden" id="connection-state" aria-live="polite">
+        <span>Connecting</span>
+      </span>
+    </header>
+    <main class="conversation" id="conversation">
+      <h1 class="visually-hidden">Conversation with the training agent</h1>
+      <ol class="messages" id="messages" aria-label="Conversation">
+        <li class="message message-agent">
+          <span class="speaker">Agent</span>
+          <div class="bubble">
+            <p>
+              I can use the equipment on this page to help you find a setup that fits your body and
+              room.
+            </p>
+          </div>
+        </li>
+        <li class="suggestions" id="suggestions">
+          <button type="button" data-prompt="Help me choose equipment for my home gym">
+            Help me choose equipment
+          </button>
+        </li>
+        <li class="tool-surface" id="tool-surface" hidden>
+          <div class="tool-call">
+            <span class="tool-icon" aria-hidden="true">↗</span>
+            <div>
+              <strong>Equipment fit controls</strong>
+              <span id="tool-status">Ready to open</span>
+            </div>
+            <button id="close-tool" type="button">Close</button>
+          </div>
+          <iframe
+            id="app-frame"
+            title="Equipment fit controls returned by the page"
+            sandbox="allow-scripts"
+          ></iframe>
+          <p class="result-direction">
+            <span aria-hidden="true">←</span> Results appear on the equipment page.
+          </p>
+        </li>
+      </ol>
+    </main>
+
+    <form class="composer" id="composer">
+      <label for="prompt">Message the training agent</label>
+      <div class="composer-row">
+        <textarea
+          id="prompt"
+          name="prompt"
+          rows="1"
+          placeholder="Ask about this equipment…"
+          required
+        ></textarea>
+        <button type="submit">Send</button>
+      </div>
+      <p id="page-origin">No compatible page</p>
+    </form>
+    <div class="visually-hidden" aria-live="polite" id="announcer"></div>
+    <script src="sidepanel.js"></script>
+  </body>
+</html>

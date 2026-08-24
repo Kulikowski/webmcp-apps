@@ -1,0 +1,337 @@
+:root {
+  color-scheme: light;
+  --background: #ffffff;
+  --foreground: #18181b;
+  --muted: #f4f4f5;
+  --muted-foreground: #52525b;
+  --border: #e4e4e7;
+  --card: #fafafa;
+  --accent: #2563eb;
+  --accent-foreground: #ffffff;
+  --selection: #dbeafe;
+  --font-sans: Geist, Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "Geist Mono", "SFMono-Regular", Consolas, ui-monospace, monospace;
+  font-family: var(--font-sans);
+  color: var(--foreground);
+  background: var(--background);
+}
+
+html {
+  box-sizing: border-box;
+}
+:where(body, header, main, div, ol, li, form, button, textarea, iframe, span) {
+  box-sizing: inherit;
+}
+html,
+body {
+  min-inline-size: 20rem;
+  /* A definite height, not a minimum: the `minmax(0, 1fr)` conversation row
+     can only resolve against the leftover space if the grid container's own
+     height is definite. With `min-block-size` the row grows to fit its
+     content instead, so `.conversation` never overflows and never scrolls. */
+  block-size: 100%;
+  margin: 0;
+}
+body {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  /* `clip`, not `hidden` - body should never be a scroll container itself. */
+  overflow: clip;
+  background: var(--background);
+  color: var(--foreground);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+button,
+textarea {
+  font: inherit;
+}
+::selection {
+  background: var(--selection);
+}
+
+.panel-header {
+  min-block-size: 4rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-inline: 1.25rem;
+  border-block-end: 1px solid var(--border);
+  background: rgb(255 255 255 / 88%);
+  backdrop-filter: blur(12px);
+}
+.agent-identity {
+  display: grid;
+  gap: 0.25rem;
+  min-inline-size: 0;
+}
+.brand-label {
+  font: 500 0.875rem/1 var(--font-mono);
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+}
+.brand-label span {
+  color: var(--accent);
+}
+.agent-identity strong {
+  color: var(--muted-foreground);
+  font-size: 0.6875rem;
+  font-weight: 400;
+}
+
+.conversation {
+  container: conversation / inline-size;
+  min-block-size: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  padding: 1.25rem;
+  scroll-padding-block: 1.25rem;
+  scrollbar-color: #d4d4d8 transparent;
+}
+.messages {
+  display: grid;
+  gap: 1.25rem;
+  max-inline-size: 42rem;
+  padding: 0;
+  margin: 0 auto;
+  list-style: none;
+}
+.message {
+  display: grid;
+  grid-template-columns: 2.75rem minmax(0, 1fr);
+  align-items: start;
+  gap: 0.75rem;
+}
+.speaker {
+  padding-block-start: 0.25rem;
+  color: var(--muted-foreground);
+  font: 0.625rem/1.4 var(--font-mono);
+  text-transform: uppercase;
+}
+.bubble {
+  justify-self: start;
+  max-inline-size: 34rem;
+  color: var(--foreground);
+  line-height: 1.6;
+  text-wrap: pretty;
+}
+.bubble p {
+  margin: 0;
+}
+.message-user .bubble {
+  justify-self: end;
+  max-inline-size: 30rem;
+  padding: 0.7rem 0.9rem;
+  border-radius: 0.75rem;
+  background: var(--muted);
+}
+
+.suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding-inline-start: 3.5rem;
+}
+.suggestions button {
+  min-block-size: 2.5rem;
+  padding: 0.55rem 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  color: var(--foreground);
+  background: var(--background);
+  cursor: pointer;
+  font-size: 0.8125rem;
+  transition:
+    border-color 150ms ease,
+    background-color 150ms ease;
+}
+.suggestions button:hover:not(:disabled) {
+  border-color: color-mix(in oklab, var(--accent) 45%, var(--border));
+  background: var(--card);
+}
+.suggestions[hidden],
+.tool-surface[hidden] {
+  display: none;
+}
+
+.tool-surface {
+  overflow: hidden;
+  margin-inline-start: 3.5rem;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: var(--background);
+}
+.tool-call {
+  min-block-size: 3.5rem;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.7rem 0.85rem;
+  border-block-end: 1px solid var(--border);
+  background: var(--card);
+}
+.tool-icon {
+  color: var(--accent);
+  font: 500 1rem var(--font-mono);
+}
+.tool-call div {
+  display: grid;
+  gap: 0.2rem;
+  min-inline-size: 0;
+}
+.tool-call strong {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.tool-call div span {
+  overflow-wrap: anywhere;
+  color: var(--muted-foreground);
+  font: 0.625rem/1.4 var(--font-mono);
+}
+.tool-call button {
+  min-block-size: 2rem;
+  padding-inline: 0.55rem;
+  border: 0;
+  border-radius: 0.4rem;
+  color: var(--muted-foreground);
+  background: transparent;
+  cursor: pointer;
+  font-size: 0.75rem;
+}
+.tool-call button:hover:not(:disabled) {
+  color: var(--foreground);
+  background: var(--muted);
+}
+#app-frame {
+  display: block;
+  inline-size: 100%;
+  block-size: min(38rem, 65dvh);
+  border: 0;
+  background: var(--background);
+}
+.result-direction {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0.7rem 0.85rem;
+  border-block-start: 1px solid var(--border);
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+.result-direction span {
+  color: var(--accent);
+  font: 500 0.875rem var(--font-mono);
+}
+
+.composer {
+  padding: 0.75rem 1.25rem 0.85rem;
+  border-block-start: 1px solid var(--border);
+  background: rgb(255 255 255 / 94%);
+  backdrop-filter: blur(12px);
+}
+.composer > label {
+  display: block;
+  margin-block-end: 0.45rem;
+  color: var(--muted-foreground);
+  font: 0.625rem var(--font-mono);
+}
+.composer-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 0.35rem;
+  padding: 0.3rem;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: var(--card);
+}
+.composer-row:focus-within {
+  border-color: color-mix(in oklab, var(--accent) 55%, var(--border));
+  outline: 3px solid color-mix(in oklab, var(--accent) 28%, transparent);
+  outline-offset: 2px;
+}
+.composer textarea {
+  field-sizing: content;
+  min-block-size: 2.5rem;
+  max-block-size: 8rem;
+  resize: none;
+  padding: 0.6rem;
+  border: 0;
+  outline: 0;
+  color: var(--foreground);
+  background: transparent;
+  line-height: 1.45;
+}
+.composer textarea::placeholder {
+  color: #71717a;
+}
+.composer button {
+  min-inline-size: 3.5rem;
+  min-block-size: 2.5rem;
+  padding-inline: 0.8rem;
+  border: 0;
+  border-radius: 0.5rem;
+  color: var(--accent-foreground);
+  background: var(--foreground);
+  cursor: pointer;
+  font-size: 0.8125rem;
+  font-weight: 500;
+}
+.composer button:hover:not(:disabled) {
+  opacity: 0.88;
+}
+.composer > p {
+  margin: 0.5rem 0 0;
+  overflow-wrap: anywhere;
+  color: var(--muted-foreground);
+  font: 0.625rem/1.45 var(--font-mono);
+}
+
+:where(button, textarea):focus-visible {
+  outline: 3px solid color-mix(in oklab, var(--accent) 70%, transparent);
+  outline-offset: 3px;
+}
+.composer textarea:focus-visible {
+  outline: 0;
+}
+.visually-hidden:where(:not(:focus-within, :active)) {
+  position: absolute !important;
+  inline-size: 1px !important;
+  block-size: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip-path: inset(50%) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+@container conversation (max-width: 24rem) {
+  .message {
+    grid-template-columns: 1fr;
+    gap: 0.35rem;
+  }
+  .speaker {
+    padding-block-start: 0;
+  }
+  .suggestions,
+  .tool-surface {
+    margin-inline-start: 0;
+    padding-inline-start: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .suggestions button {
+    transition: none;
+  }
+  .conversation {
+    scroll-behavior: auto;
+  }
+}
