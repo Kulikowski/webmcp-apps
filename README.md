@@ -21,7 +21,8 @@ Available under the [MIT License](LICENSE).
    `gym_open_fit_sidecar` returns the page state plus a private `_meta.ui` descriptor containing a
    UI URL and the page tools it may call.
 2. [extension/content-script.js](extension/content-script.js) discovers and calls those tools
-   through `document.modelContext.getTools()` and `document.modelContext.executeTool()`.
+   through `document.modelContext.getTools()` and
+   `document.modelContext.executeTool(tool, inputObject)`.
 3. [extension/sidepanel.js](extension/sidepanel.js) interprets `_meta.ui`, checks the URL and tool
    allowlist, and loads [fit-sidecar.html](site/fit-sidecar.html) in a sandboxed iframe.
 4. [site/fit-sidecar.js](site/fit-sidecar.js) uses MCP Apps-like `ui/initialize` and `tools/call`

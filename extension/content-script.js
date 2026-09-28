@@ -43,9 +43,9 @@
     const tools = await document.modelContext.getTools();
     const tool = tools.find((tool) => tool.name === name && tool.window === window);
     if (!tool) throw new Error(`Page tool unavailable: ${name}`);
-    // Chrome's documented executeTool signature takes a JSON string.
+    // executeTool takes the input as a plain object (not a JSON string).
     // Execute once: errors propagate to the panel without retries.
-    const result = await document.modelContext.executeTool(tool, JSON.stringify(args ?? {}));
+    const result = await document.modelContext.executeTool(tool, args ?? {});
     return typeof result === "string" ? JSON.parse(result) : result;
   }
 

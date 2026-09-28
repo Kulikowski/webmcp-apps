@@ -132,7 +132,8 @@ function content(nativeAvailable = true, failure = false) {
     getTools: async () => tools,
     async executeTool(tool, args) {
       calls.push({ name: tool.name, args });
-      if (typeof args !== "string") throw new TypeError("Wrong argument type");
+      if (typeof args !== "object" || args === null || Array.isArray(args))
+        throw new TypeError("invalid input object: value is not an object");
       if (tool.name === "gym_update_profile" && failure)
         throw new Error("Mutation failed after dispatch");
       return JSON.stringify(
@@ -317,7 +318,7 @@ test("draft edits survive notifications, keyboard repeats accumulate, and writes
   assert.equal(calls.length, 2);
 });
 
-test("native calls pass JSON arguments and decode the result", async () => {
+test("native calls pass object arguments and decode the result", async () => {
   const c = content();
   const args = { height: 190, weight: 90, age: 40 };
   const result = await c.request({
@@ -328,7 +329,7 @@ test("native calls pass JSON arguments and decode the result", async () => {
   assert.equal(result.ok, true);
   assert.equal(result.result.revision, 2);
   const call = c.calls.find((call) => call.name === "gym_update_profile");
-  assert.deepEqual(plain(JSON.parse(call.args)), args);
+  assert.deepEqual(plain(call.args), args);
   assert.equal(c.bridge.length, 0);
 });
 
