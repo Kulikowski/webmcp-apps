@@ -4,7 +4,7 @@ const PROTOCOL_VERSION = "2026-01-26";
 const OPEN_TOOL = "gym_open_fit_sidecar";
 const ALLOWED_APP_TOOLS = new Set(["gym_update_profile", "gym_set_preferences"]);
 const APP_MIME_TYPE = "text/html;profile=mcp-app";
-const EXTENSION_META_KEY = "me.kulikowski/webmcp-apps";
+const EXTENSION_META_KEY = "webmcp-apps";
 const MAX_APP_HTML_LENGTH = 512 * 1024;
 // Manifest sandbox page that receives the View's HTML (see app-host.js).
 const APP_HOST_PAGE = "app-host.html";

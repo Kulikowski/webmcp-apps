@@ -8,8 +8,8 @@
 const BRIDGE_CHANNEL = "form-factor-webmcp";
 const SIDECAR_URI = "ui://form-factor/equipment-fit";
 const APP_MIME_TYPE = "text/html;profile=mcp-app";
-// Fields MCP Apps doesn't define live under a vendor key, never under `_meta.ui`.
-const EXTENSION_META_KEY = "me.kulikowski/webmcp-apps";
+// Fields MCP Apps doesn't define live under their own key, never under `_meta.ui`.
+const EXTENSION_META_KEY = "webmcp-apps";
 
 const equipment = Object.freeze([
   {

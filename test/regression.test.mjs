@@ -264,7 +264,7 @@ test("App result rejects unknown, missing, oversized UI and unapproved tools", a
       { type: "text", text: "ready" },
       { type: "resource", resource: { ...resource, ...resourcePatch } },
     ],
-    _meta: { ui, "me.kulikowski/webmcp-apps": { ...meta, ...metaPatch } },
+    _meta: { ui, "webmcp-apps": { ...meta, ...metaPatch } },
   });
   p.context.result = result();
   assert.equal(p.run("validateAppResult(result).html"), resource.text);
@@ -424,7 +424,7 @@ test("page registers all three tools and returns the View as an embedded resourc
   assert.equal(resource.mimeType, "text/html;profile=mcp-app");
   assert.equal(resource.text, "<!doctype html><title>View</title>");
   assert.deepEqual(plain(result._meta.ui), { resourceUri: "ui://form-factor/equipment-fit" });
-  assert.deepEqual(plain(result._meta["me.kulikowski/webmcp-apps"].allowedPageTools), [
+  assert.deepEqual(plain(result._meta["webmcp-apps"].allowedPageTools), [
     "gym_update_profile",
     "gym_set_preferences",
   ]);
