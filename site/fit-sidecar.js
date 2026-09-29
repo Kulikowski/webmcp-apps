@@ -137,8 +137,9 @@ function enqueueUpdate(group, version, name, args) {
     if (version !== edits[group]) return;
     try {
       const result = await callTool(name, args);
+      if (!result?.structuredContent) throw new Error("The page returned no state.");
       if (version === edits[group]) dirty[group] = false;
-      render(result, true);
+      render(result.structuredContent, true);
     } catch (error) {
       // Keep the draft visible. A subsequent edit can submit it again explicitly.
       setSync("Update failed", "error");
@@ -214,6 +215,11 @@ window.addEventListener("message", (event) => {
     render(data.params?.structuredContent, false);
   } else if (data.method === "ui/notifications/tool-input") {
     // gym_open_fit_sidecar takes no arguments, so there is nothing to apply.
+  } else if (data.method === "ui/resource-teardown") {
+    // Edits still inside their debounce window are dropped, not sent.
+    clearTimeout(profileTimer);
+    clearTimeout(preferenceTimer);
+    send({ jsonrpc: "2.0", id: data.id, result: {} });
   } else if (data.id && pending.has(data.id)) {
     const request = pending.get(data.id);
     clearTimeout(request.timer);
@@ -230,7 +236,7 @@ send({
   method: "ui/initialize",
   params: {
     protocolVersion: PROTOCOL_VERSION,
-    appCapabilities: { tools: {} },
+    appCapabilities: {},
     appInfo: { name: "Equipment fit sidecar", version: "1.0.0" },
   },
 });

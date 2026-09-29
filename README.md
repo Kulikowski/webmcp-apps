@@ -1,4 +1,4 @@
-# MCP Apps-like UI over WebMCP
+# MCP Apps UI over WebMCP
 
 A localhost experiment: can a WebMCP tool return a UI that an agent host renders beside a website?
 This demo uses a home-gym equipment page and a scripted Chrome side-panel agent (no LLM).
@@ -18,44 +18,68 @@ Available under the [MIT License](LICENSE).
 ## Where the experiment happens
 
 1. [site/app.js](site/app.js) registers three tools with `document.modelContext.registerTool()`.
-   `gym_open_fit_sidecar` returns the page state plus a private `_meta.ui` descriptor containing a
-   UI URL and the page tools it may call.
-2. [extension/content-script.js](extension/content-script.js) discovers and calls those tools
+   `gym_open_fit_sidecar` returns text, the page state, an MCP Apps `_meta.ui.resourceUri` link, and
+   the View itself as an embedded resource (`ui://form-factor/equipment-fit`,
+   `text/html;profile=mcp-app`).
+2. [server.mjs](server.mjs) inlines [fit-sidecar.html](site/fit-sidecar.html) with its CSS and JS
+   into one HTML document, the way an MCP server bundles a `ui://` resource.
+3. [extension/content-script.js](extension/content-script.js) discovers and calls those tools
    through `document.modelContext.getTools()` and
    `document.modelContext.executeTool(tool, inputObject)`.
-3. [extension/sidepanel.js](extension/sidepanel.js) interprets `_meta.ui`, checks the URL and tool
-   allowlist, and loads [fit-sidecar.html](site/fit-sidecar.html) in a sandboxed iframe.
-4. [site/fit-sidecar.js](site/fit-sidecar.js) uses MCP Apps-like `ui/initialize` and `tools/call`
+4. [extension/sidepanel.js](extension/sidepanel.js) resolves the link to the embedded resource and
+   checks the tool allowlist. [app-host.html](extension/app-host.html) is the MCP Apps sandbox
+   proxy: a manifest sandbox page on an opaque origin that loads the View in an inner iframe under
+   the MCP Apps default CSP and relays messages between it and the side panel.
+5. [site/fit-sidecar.js](site/fit-sidecar.js) uses MCP Apps `ui/initialize` and `tools/call`
    messages to send profile and preference changes through the extension. The recommendation updates
    on the original page.
 
-The experiment is returning a UI descriptor from a WebMCP tool, rendering that UI in the extension,
-and letting its controls call tools on the original page. This is a private convention between this
-page and extension, not standard WebMCP UI support or MCP Apps interoperability. The equipment data
-and recommendations are illustrative; page state resets on reload.
+## What differs from MCP Apps
 
-## The UI descriptor
+The View, its `ui://` resource, the host-View messages and the sandbox proxy messages follow the
+[MCP Apps spec](https://github.com/modelcontextprotocol/ext-apps/blob/main/specification/2026-01-26/apps.mdx).
+WebMCP has tools only, and the page is live, so five things change:
+
+| MCP Apps                                                     | Here                                                                           | Why                                                                             |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------- |
+| `_meta.ui.resourceUri` on the tool definition                | The same field on the tool result                                              | WebMCP's `registerTool()` has no `_meta`, so the host can't know in advance     |
+| Host fetches the View with `resources/read`                  | The same resource contents, embedded in the result's `content`                 | WebMCP has no resources. MCP Apps deferred embedded resources; MCP-UI uses them |
+| `visibility: ["app"]` on app-only tools                      | `allowedPageTools` under a `webmcp-apps` `_meta` key, checked by the extension | WebMCP can't mark tools app-only, so other agents on the page still see them    |
+| Sandbox proxy with `allow-same-origin`, View written into it | Opaque-origin proxy, View loaded as `srcdoc`                                   | An extension's only origin separate from the side panel is an opaque one        |
+| One `ui/notifications/tool-result` per tool call             | Resent whenever the page state changes                                         | The page can change without a tool call, and MCP Apps has no push message       |
+
+Rendering the View at all is a private convention between this page and this extension: WebMCP has
+no rule that a host should render UI found in a tool result.
+
+## The tool result
 
 `gym_open_fit_sidecar` returns this object in [site/app.js](site/app.js):
 
 ```js
 return {
-  content: [{ type: "text", text: "Interactive equipment fit sidecar ready." }],
+  content: [
+    { type: "text", text: "Interactive equipment fit controls opened for the user." },
+    {
+      type: "resource",
+      resource: {
+        uri: "ui://form-factor/equipment-fit",
+        mimeType: "text/html;profile=mcp-app",
+        text: html,
+      },
+    },
+  ],
   structuredContent: snapshot(),
   _meta: {
-    ui: {
-      resourceUri: "ui://form-factor/equipment-fit",
-      resourceUrl: `${location.origin}/fit-sidecar.html`,
-      mimeType: "text/html;profile=mcp-app",
+    ui: { resourceUri: "ui://form-factor/equipment-fit" },
+    "webmcp-apps": {
       allowedPageTools: ["gym_update_profile", "gym_set_preferences"],
-      title: "Equipment fit sidecar",
     },
   },
 };
 ```
 
-The extension interprets `_meta.ui` as instructions to open the controls; `structuredContent`
-provides their initial state. This interpretation is the private convention being explored.
+An agent that can't render MCP Apps can ignore the resource block and use the text.
+`structuredContent` gives the View its initial state.
 
 ## Run locally
 
