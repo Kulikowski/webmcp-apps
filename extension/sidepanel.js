@@ -8,6 +8,7 @@ const EXTENSION_META_KEY = "webmcp-apps";
 const MAX_APP_HTML_LENGTH = 512 * 1024;
 // Manifest sandbox page that receives the View's HTML (see app-host.js).
 const APP_HOST_PAGE = "app-host.html";
+const TEARDOWN_TIMEOUT_MS = 1000;
 
 const elements = {
   announcer: document.querySelector("#announcer"),
@@ -30,6 +31,8 @@ let appDescriptor = null;
 let appResult = null;
 let appReady = false;
 let resourceDelivered = false;
+let teardownCount = 0;
+const teardowns = new Map();
 let updateTimer = null;
 let generation = 0;
 let documentToken = null;
@@ -147,7 +150,7 @@ function sendToolData(result) {
 }
 
 async function connect() {
-  resetToolSurface();
+  resetToolSurface("Reconnecting to the page");
   pageReady = false;
   documentToken = null;
   const epoch = generation;
@@ -172,21 +175,49 @@ async function connect() {
   }
 }
 
-function resetToolSurface() {
+// MCP Apps: the host MUST send ui/resource-teardown before tearing a View down,
+// and SHOULD wait for the answer. The old frame stays alive, hidden, until the
+// View answers or the timeout passes; a fresh frame takes its place at once.
+function tearDownView(reason) {
+  const frame = elements.frame;
+  if (!appReady) {
+    frame.removeAttribute("src");
+    return;
+  }
+  const fresh = frame.cloneNode(false);
+  fresh.removeAttribute("src");
+  frame.style.display = "none";
+  frame.after(fresh);
+  elements.frame = fresh;
+  const id = `teardown-${++teardownCount}`;
+  const done = () => {
+    clearTimeout(timer);
+    teardowns.delete(id);
+    frame.remove();
+  };
+  const timer = setTimeout(done, TEARDOWN_TIMEOUT_MS);
+  teardowns.set(id, { source: frame.contentWindow, done });
+  frame.contentWindow?.postMessage(
+    { jsonrpc: "2.0", id, method: "ui/resource-teardown", params: { reason } },
+    "*",
+  );
+}
+
+function resetToolSurface(reason = "Host reset") {
+  tearDownView(reason);
   generation++;
   clearTimeout(updateTimer);
   appReady = false;
   resourceDelivered = false;
   appDescriptor = null;
   appResult = null;
-  elements.frame.removeAttribute("src");
   elements.toolSurface.hidden = true;
   elements.suggestions.hidden = false;
 }
 
 function connectFailed(error) {
   pageReady = false;
-  resetToolSurface();
+  resetToolSurface("Page connection failed");
   setConnection("No page", "error");
   elements.origin.textContent = error instanceof Error ? error.message : String(error);
 }
@@ -194,7 +225,7 @@ function connectFailed(error) {
 async function openFitTool() {
   if (!pageReady) await connect();
   if (!pageReady) return;
-  resetToolSurface();
+  resetToolSurface("Replaced by new controls");
   const epoch = generation;
   elements.suggestions.hidden = true;
   elements.toolSurface.hidden = false;
@@ -238,8 +269,11 @@ async function handlePrompt(prompt) {
 }
 
 window.addEventListener("message", async (event) => {
-  if (event.source !== elements.frame.contentWindow || event.data?.jsonrpc !== "2.0") return;
   const data = event.data;
+  const teardown = teardowns.get(data?.id);
+  if (teardown && event.source === teardown.source && data.method === undefined)
+    return teardown.done();
+  if (event.source !== elements.frame.contentWindow || data?.jsonrpc !== "2.0") return;
   const epoch = generation;
   if (!appDescriptor) return;
   if (data.method === "ui/notifications/sandbox-proxy-ready") {
@@ -280,7 +314,7 @@ window.addEventListener("message", async (event) => {
       });
       if (epoch !== generation) return;
       toApp({ jsonrpc: "2.0", id: data.id, result });
-      elements.toolStatus.textContent = `Website updated - revision ${result.revision}`;
+      elements.toolStatus.textContent = `Website updated - revision ${result.structuredContent?.revision}`;
       clearTimeout(updateTimer);
       updateTimer = setTimeout(() => {
         elements.toolStatus.textContent = "Controls ready - changes appear on website";
@@ -290,11 +324,21 @@ window.addEventListener("message", async (event) => {
       toApp({ jsonrpc: "2.0", id: data.id, error: { code: -32000, message: error.message } });
       elements.toolStatus.textContent = "Page update failed";
     }
+  } else if (data.method === "ping" && data.id !== undefined) {
+    toApp({ jsonrpc: "2.0", id: data.id, result: {} });
+  } else if (typeof data.method === "string" && data.id !== undefined) {
+    // JSON-RPC requires an answer to every request, including unsupported ones.
+    toApp({
+      jsonrpc: "2.0",
+      id: data.id,
+      error: { code: -32601, message: `Method not found: ${data.method}` },
+    });
   }
 });
 
-// Fresh page state reaches the app as another tool-result, which is how the
-// host pushes updated data in MCP Apps. There is no separate "context" method.
+// Not in MCP Apps: the spec sends one tool-result per tool call and has no push
+// message. The page can change without one, so fresh page state reaches the
+// View as another tool-result (see the README).
 chrome.runtime.onMessage.addListener((message, sender) => {
   if (
     message.type !== "PAGE_CONTEXT_CHANGED" ||
@@ -332,16 +376,16 @@ elements.suggestions.addEventListener("click", (event) => {
   if (button) handlePrompt(button.dataset.prompt);
 });
 elements.closeTool.addEventListener("click", () => {
-  resetToolSurface();
+  resetToolSurface("Closed by the user");
   addMessage("agent", "Fit controls closed. The last recommendation remains on the website.");
 });
 chrome.tabs.onActivated.addListener(() => {
-  resetToolSurface();
+  resetToolSurface("Tab changed");
   connect().catch(connectFailed);
 });
 chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
   if (tabId === activeTab?.id && changeInfo.status === "loading") {
-    resetToolSurface();
+    resetToolSurface("Page navigating");
     pageReady = false;
     documentToken = null;
     setConnection("Page navigating", "pending");

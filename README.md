@@ -38,7 +38,7 @@ Available under the [MIT License](LICENSE).
 
 The View, its `ui://` resource, the host-View messages and the sandbox proxy messages follow the
 [MCP Apps spec](https://github.com/modelcontextprotocol/ext-apps/blob/main/specification/2026-01-26/apps.mdx).
-WebMCP has tools only, so four things change:
+WebMCP has tools only, and the page is live, so five things change:
 
 | MCP Apps                                                     | Here                                                                           | Why                                                                             |
 | ------------------------------------------------------------ | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------- |
@@ -46,6 +46,7 @@ WebMCP has tools only, so four things change:
 | Host fetches the View with `resources/read`                  | The same resource contents, embedded in the result's `content`                 | WebMCP has no resources. MCP Apps deferred embedded resources; MCP-UI uses them |
 | `visibility: ["app"]` on app-only tools                      | `allowedPageTools` under a `webmcp-apps` `_meta` key, checked by the extension | WebMCP can't mark tools app-only, so other agents on the page still see them    |
 | Sandbox proxy with `allow-same-origin`, View written into it | Opaque-origin proxy, View loaded as `srcdoc`                                   | An extension's only origin separate from the side panel is an opaque one        |
+| One `ui/notifications/tool-result` per tool call             | Resent whenever the page state changes                                         | The page can change without a tool call, and MCP Apps has no push message       |
 
 Rendering the View at all is a private convention between this page and this extension: WebMCP has
 no rule that a host should render UI found in a tool result.

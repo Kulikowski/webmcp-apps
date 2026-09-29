@@ -362,12 +362,30 @@ test("draft edits survive notifications, keyboard repeats accumulate, and writes
     data: {
       jsonrpc: "2.0",
       id: calls[0].id,
-      result: { ...initial, profile: { ...initial.profile, height: 190 }, revision: 3 },
+      result: {
+        content: [{ type: "text", text: "Profile updated." }],
+        structuredContent: {
+          ...initial,
+          profile: { ...initial.profile, height: 190 },
+          revision: 3,
+        },
+      },
     },
   });
   await flush();
+  assert.equal(vm.runInContext("state.revision", context), 3);
   calls = sent.filter((m) => m.method === "tools/call");
   assert.equal(calls.length, 2);
+  // The View answers ui/resource-teardown and drops edits still being debounced.
+  document.querySelector("#height").value = "191";
+  vm.runInContext("scheduleProfileUpdate()", context);
+  const pendingTimers = timers.size;
+  receive({
+    source: parent,
+    data: { jsonrpc: "2.0", id: "teardown-1", method: "ui/resource-teardown", params: {} },
+  });
+  assert.ok(timers.size < pendingTimers);
+  assert.deepEqual(plain(sent.at(-1)), { jsonrpc: "2.0", id: "teardown-1", result: {} });
 });
 
 test("native calls pass object arguments and decode the result", async () => {
@@ -516,4 +534,87 @@ test("sandbox proxy loads the View in an inner iframe and relays non-sandbox mes
   x.fromView(call);
   x.fromView({ jsonrpc: "2.0", method: "ui/notifications/sandbox-proxy-ready", params: {} });
   assert.deepEqual(plain(x.toHost.slice(1)), [{ message: call, origin: "chrome-extension://abc" }]);
+});
+test("page tools return a CallToolResult with text and structuredContent", async () => {
+  const p = page();
+  const result = await p.call("gym_update_profile", { height: 180, weight: 80, age: 30 });
+  assert.equal(result.content[0].type, "text");
+  assert.match(result.content[0].text, /^Profile updated\. Recommendation: .+\.$/);
+  assert.equal(result.structuredContent.revision, 2);
+  assert.equal(result.structuredContent.profile.height, 180);
+});
+test("host passes CallToolResults to the View and answers ping and unknown requests", async () => {
+  const p = panel();
+  await flush();
+  p.run("appReady = true; appDescriptor = { html: '', allowedPageTools: ['gym_set_preferences'] }");
+  const toolResult = {
+    content: [{ type: "text", text: "ok" }],
+    structuredContent: { revision: 4 },
+  };
+  p.context.toolResult = toolResult;
+  p.run("chrome.tabs.sendMessage = async () => ({ ok: true, result: toolResult })");
+  const frame = p.run("elements.frame.contentWindow");
+  const call = { name: "gym_set_preferences", arguments: { room: "compact" } };
+  await p.events.message({
+    source: frame,
+    data: { jsonrpc: "2.0", id: 1, method: "tools/call", params: call },
+  });
+  await p.events.message({ source: frame, data: { jsonrpc: "2.0", id: 2, method: "ping" } });
+  await p.events.message({
+    source: frame,
+    data: { jsonrpc: "2.0", id: 3, method: "ui/message", params: {} },
+  });
+  // Notifications get no answer, known or not.
+  await p.events.message({
+    source: frame,
+    data: { jsonrpc: "2.0", method: "notifications/message", params: {} },
+  });
+  assert.deepEqual(plain(p.messages), [
+    { jsonrpc: "2.0", id: 1, result: toolResult },
+    { jsonrpc: "2.0", id: 2, result: {} },
+    { jsonrpc: "2.0", id: 3, error: { code: -32601, message: "Method not found: ui/message" } },
+  ]);
+  assert.equal(p.run("elements.toolStatus.textContent"), "Website updated - revision 4");
+});
+test("host sends ui/resource-teardown and keeps the old View until it answers", async () => {
+  const p = panel();
+  await flush();
+  const sent = { old: [], fresh: [] };
+  let removed = false;
+  const frame = (name) => ({
+    style: {},
+    removeAttribute() {},
+    contentWindow: { postMessage: (m) => sent[name].push(m) },
+  });
+  const fresh = frame("fresh");
+  const old = {
+    ...frame("old"),
+    cloneNode: () => fresh,
+    after: (next) => assert.equal(next, fresh),
+    remove: () => (removed = true),
+  };
+  p.context.old = old;
+  // A View that never initialized is removed without a teardown request.
+  p.run("resetToolSurface()");
+  assert.equal(p.messages.length, 0);
+  p.run(
+    "elements.frame = old; appReady = true; appDescriptor = { html: '', allowedPageTools: [] }",
+  );
+  p.run('resetToolSurface("Closed by the user")');
+  assert.equal(p.run("elements.frame"), fresh);
+  assert.equal(old.style.display, "none");
+  assert.deepEqual(plain(sent.old), [
+    {
+      jsonrpc: "2.0",
+      id: "teardown-1",
+      method: "ui/resource-teardown",
+      params: { reason: "Closed by the user" },
+    },
+  ]);
+  const answer = { jsonrpc: "2.0", id: "teardown-1", result: {} };
+  await p.events.message({ source: fresh.contentWindow, data: answer });
+  assert.equal(removed, false);
+  await p.events.message({ source: old.contentWindow, data: answer });
+  assert.equal(removed, true);
+  assert.equal(sent.fresh.length, 0);
 });

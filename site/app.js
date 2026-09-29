@@ -186,12 +186,17 @@ function normalizeMix(input) {
   return mix;
 }
 
-function commit() {
+// Page tools return an MCP CallToolResult: text for the model, state for Views.
+function commit(summary) {
   state.engaged = true;
   state.revision += 1;
   render();
   broadcast();
-  return snapshot();
+  const current = snapshot();
+  return {
+    content: [{ type: "text", text: `${summary} Recommendation: ${current.recommendation.name}.` }],
+    structuredContent: current,
+  };
 }
 
 const tools = [
@@ -258,7 +263,7 @@ const tools = [
         weight: validateNumber(input.weight, 45, 160, "Weight"),
         age: validateNumber(input.age, 18, 80, "Age"),
       };
-      return commit();
+      return commit("Profile updated.");
     },
   },
   {
@@ -300,7 +305,7 @@ const tools = [
       if (typeof input.room !== "string" || !Object.hasOwn(roomRank, input.room))
         throw new Error("Room must be compact, standard, or dedicated.");
       state.preferences = { room: input.room, mix: normalizeMix(input) };
-      return commit();
+      return commit("Room and training mix updated.");
     },
   },
 ];
