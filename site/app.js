@@ -1,11 +1,15 @@
 // The whole point of this file: `gym_open_fit_sidecar` is a WebMCP tool whose
-// return value carries an MCP-App-like `_meta.ui` descriptor. WebMCP has no
-// Resources primitive, no `ui://` lifecycle and no normative "render this"
-// result field, so that descriptor is a private convention between this page
-// and the extension that consumes it - not MCP Apps interoperability.
+// result carries an MCP Apps View. WebMCP tools have no `_meta` and WebMCP has
+// no resources, so two MCP Apps pieces move into the result: the tool's
+// `_meta.ui.resourceUri` link, and the `resources/read` contents as an embedded
+// resource. Rendering it is a private convention between this page and the
+// extension - not MCP Apps interoperability.
 
 const BRIDGE_CHANNEL = "form-factor-webmcp";
 const SIDECAR_URI = "ui://form-factor/equipment-fit";
+const APP_MIME_TYPE = "text/html;profile=mcp-app";
+// Fields MCP Apps doesn't define live under a vendor key, never under `_meta.ui`.
+const EXTENSION_META_KEY = "me.kulikowski/webmcp-apps";
 
 const equipment = Object.freeze([
   {
@@ -194,22 +198,31 @@ const tools = [
   {
     name: "gym_open_fit_sidecar",
     title: "Open equipment fit sidecar",
-    description: "Return an MCP-App-like interactive sidecar for the gym equipment on this page.",
+    description:
+      "Open interactive equipment-fit controls for the user. Returns an MCP Apps UI resource.",
     inputSchema: { type: "object", properties: {}, additionalProperties: false },
     async execute() {
+      // Single-file View HTML, inlined by server.mjs into /fit-sidecar.resource.js.
+      const html = globalThis.FIT_SIDECAR_HTML;
+      if (typeof html !== "string" || !html)
+        throw new Error("Equipment fit controls are unavailable.");
       return {
-        content: [{ type: "text", text: "Interactive equipment fit sidecar ready." }],
+        content: [
+          { type: "text", text: "Interactive equipment fit controls opened for the user." },
+          // Stands in for `resources/read`: the same TextResourceContents, as a
+          // standard MCP embedded resource. Agents that can't render it can
+          // ignore it and use the text block above.
+          { type: "resource", resource: { uri: SIDECAR_URI, mimeType: APP_MIME_TYPE, text: html } },
+        ],
         structuredContent: snapshot(),
-        // Not a standard WebMCP field. A conforming WebMCP consumer sees one
-        // opaque JSON blob here; only a consumer that knows this convention
-        // treats `_meta.ui` as "render this".
         _meta: {
-          ui: {
-            resourceUri: SIDECAR_URI,
-            resourceUrl: `${location.origin}/fit-sidecar.html`,
-            mimeType: "text/html;profile=mcp-app",
+          // MCP Apps puts this on the tool definition; WebMCP's registerTool()
+          // has no `_meta`, so the result carries it.
+          ui: { resourceUri: SIDECAR_URI },
+          // Not standard: WebMCP cannot mark tools with MCP Apps' visibility:
+          // ["app"], so the page names the tools its View may call.
+          [EXTENSION_META_KEY]: {
             allowedPageTools: ["gym_update_profile", "gym_set_preferences"],
-            title: "Equipment fit sidecar",
           },
         },
       };

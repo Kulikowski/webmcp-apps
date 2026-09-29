@@ -3,6 +3,11 @@ const APP_RESOURCE_URI = "ui://form-factor/equipment-fit";
 const PROTOCOL_VERSION = "2026-01-26";
 const OPEN_TOOL = "gym_open_fit_sidecar";
 const ALLOWED_APP_TOOLS = new Set(["gym_update_profile", "gym_set_preferences"]);
+const APP_MIME_TYPE = "text/html;profile=mcp-app";
+const EXTENSION_META_KEY = "me.kulikowski/webmcp-apps";
+const MAX_APP_HTML_LENGTH = 512 * 1024;
+// Manifest sandbox page that receives the View's HTML (see app-host.js).
+const APP_HOST_PAGE = "app-host.html";
 
 const elements = {
   announcer: document.querySelector("#announcer"),
@@ -24,6 +29,7 @@ let pageReady = false;
 let appDescriptor = null;
 let appResult = null;
 let appReady = false;
+let resourceDelivered = false;
 let updateTimer = null;
 let generation = 0;
 let documentToken = null;
@@ -79,30 +85,30 @@ async function sendToPage(message, tab = activeTab, token = documentToken) {
   return response.result;
 }
 
+// The MCP Apps host flow, with the two substitutions WebMCP forces: the
+// `_meta.ui.resourceUri` link comes from the result (WebMCP tools have no
+// `_meta`), and `resources/read` is answered by the matching embedded resource.
 function validateAppResult(result) {
   if (!result || typeof result !== "object" || Array.isArray(result))
     throw new Error("The WebMCP tool did not return an App result.");
-  const ui = result._meta?.ui;
-  if (!ui || typeof ui !== "object")
-    throw new Error("The WebMCP result has no MCP-App-like UI descriptor.");
-  if (ui.resourceUri !== APP_RESOURCE_URI || ui.mimeType !== "text/html;profile=mcp-app")
-    throw new Error("The returned App resource was not recognized.");
-  const resourceUrl = new URL(ui.resourceUrl);
+  const uri = result._meta?.ui?.resourceUri;
+  if (uri !== APP_RESOURCE_URI) throw new Error("The returned App resource was not recognized.");
+  const resources = (Array.isArray(result.content) ? result.content : []).filter(
+    (block) => block?.type === "resource" && block.resource?.uri === uri,
+  );
+  if (resources.length !== 1) throw new Error("The WebMCP result has no MCP Apps UI resource.");
+  const { mimeType, text } = resources[0].resource;
+  if (mimeType !== APP_MIME_TYPE) throw new Error("The returned App resource was not recognized.");
+  if (typeof text !== "string" || !text || text.length > MAX_APP_HTML_LENGTH)
+    throw new Error("The returned App resource is empty or too large.");
+  // Not standard: stands in for MCP Apps' visibility: ["app"].
+  const allowedPageTools = result._meta?.[EXTENSION_META_KEY]?.allowedPageTools;
   if (
-    resourceUrl.origin !== PAGE_ORIGIN ||
-    resourceUrl.pathname !== "/fit-sidecar.html" ||
-    resourceUrl.search ||
-    resourceUrl.hash ||
-    resourceUrl.username ||
-    resourceUrl.password
-  )
-    throw new Error("The returned App URL was not approved.");
-  if (
-    !Array.isArray(ui.allowedPageTools) ||
-    ui.allowedPageTools.some((name) => !ALLOWED_APP_TOOLS.has(name))
+    !Array.isArray(allowedPageTools) ||
+    allowedPageTools.some((name) => !ALLOWED_APP_TOOLS.has(name))
   )
     throw new Error("The App requested a page tool outside the allowlist.");
-  return ui;
+  return { uri, html: text, allowedPageTools };
 }
 
 function toApp(message) {
@@ -129,10 +135,14 @@ function answerInitialize(id) {
 function sendToolData(result) {
   if (!result) return;
   toApp({ jsonrpc: "2.0", method: "ui/notifications/tool-input", params: { arguments: {} } });
+  // The View doesn't need its own HTML back, so drop that resource block.
+  const content = (result.content ?? []).filter(
+    (block) => block?.type !== "resource" || block.resource?.uri !== APP_RESOURCE_URI,
+  );
   toApp({
     jsonrpc: "2.0",
     method: "ui/notifications/tool-result",
-    params: { content: result.content, structuredContent: result.structuredContent },
+    params: { content, structuredContent: result.structuredContent },
   });
 }
 
@@ -166,6 +176,7 @@ function resetToolSurface() {
   generation++;
   clearTimeout(updateTimer);
   appReady = false;
+  resourceDelivered = false;
   appDescriptor = null;
   appResult = null;
   elements.frame.removeAttribute("src");
@@ -196,7 +207,7 @@ async function openFitTool() {
     appResult = result;
     appReady = false;
     elements.toolStatus.textContent = "Controls loading";
-    elements.frame.src = appDescriptor.resourceUrl;
+    elements.frame.src = APP_HOST_PAGE;
     elements.announcer.textContent =
       "Equipment fit controls opened. Results will appear on the website.";
   } catch (error) {
@@ -231,7 +242,16 @@ window.addEventListener("message", async (event) => {
   const data = event.data;
   const epoch = generation;
   if (!appDescriptor) return;
-  if (data.method === "ui/initialize") {
+  if (data.method === "ui/notifications/sandbox-proxy-ready") {
+    // Deliver the embedded resource once; later requests are ignored.
+    if (resourceDelivered) return;
+    resourceDelivered = true;
+    toApp({
+      jsonrpc: "2.0",
+      method: "ui/notifications/sandbox-resource-ready",
+      params: { html: appDescriptor.html },
+    });
+  } else if (data.method === "ui/initialize") {
     if (data.params?.protocolVersion !== PROTOCOL_VERSION) {
       toApp({
         jsonrpc: "2.0",

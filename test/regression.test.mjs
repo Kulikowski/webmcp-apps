@@ -138,7 +138,18 @@ function content(nativeAvailable = true, failure = false) {
         throw new Error("Mutation failed after dispatch");
       return JSON.stringify(
         tool.name === "gym_open_fit_sidecar"
-          ? { _meta: { ui: { resourceUri: "ui://form-factor/equipment-fit" } } }
+          ? {
+              content: [
+                {
+                  type: "resource",
+                  resource: {
+                    uri: "ui://form-factor/equipment-fit",
+                    mimeType: "text/html;profile=mcp-app",
+                    text: "<!doctype html>",
+                  },
+                },
+              ],
+            }
           : { revision: 2 },
       );
     },
@@ -239,27 +250,68 @@ test("panel rejects other tabs, frames and stale documents", async () => {
   p.listener(message, { tab: { id: 1 }, frameId: 0 });
   assert.equal(p.messages.length, 1);
 });
-test("descriptor rejects unapproved resources and tools", async () => {
+test("App result rejects unknown, missing, oversized UI and unapproved tools", async () => {
   const p = panel();
   await flush();
-  const ui = {
-    resourceUri: "ui://form-factor/equipment-fit",
+  const resource = {
+    uri: "ui://form-factor/equipment-fit",
     mimeType: "text/html;profile=mcp-app",
-    resourceUrl: "http://localhost:8787/fit-sidecar.html",
-    allowedPageTools: ["gym_update_profile"],
+    text: "<!doctype html><title>View</title>",
   };
-  p.context.result = { _meta: { ui } };
-  assert.doesNotThrow(() => p.run("validateAppResult(result)"));
-  for (const patch of [
-    { resourceUrl: "https://evil.example/fit-sidecar.html" },
-    { resourceUrl: "http://localhost:8787/app.js" },
-    { resourceUri: "ui://unknown" },
-    { mimeType: "text/html" },
-    { allowedPageTools: ["delete_everything"] },
+  const meta = { allowedPageTools: ["gym_update_profile"] };
+  const result = (resourcePatch = {}, metaPatch = {}, ui = { resourceUri: resource.uri }) => ({
+    content: [
+      { type: "text", text: "ready" },
+      { type: "resource", resource: { ...resource, ...resourcePatch } },
+    ],
+    _meta: { ui, "me.kulikowski/webmcp-apps": { ...meta, ...metaPatch } },
+  });
+  p.context.result = result();
+  assert.equal(p.run("validateAppResult(result).html"), resource.text);
+  for (const [resourcePatch, metaPatch] of [
+    [{ uri: "ui://unknown" }, {}],
+    [{ mimeType: "text/html" }, {}],
+    [{ text: "" }, {}],
+    [{ text: "x".repeat(512 * 1024 + 1) }, {}],
+    [{}, { allowedPageTools: ["delete_everything"] }],
+    [{}, { allowedPageTools: undefined }],
   ]) {
-    p.context.result = { _meta: { ui: { ...ui, ...patch } } };
+    p.context.result = result(resourcePatch, metaPatch);
     assert.throws(() => p.run("validateAppResult(result)"));
   }
+  // The MCP Apps link is required, and must name the embedded resource.
+  for (const ui of [null, {}, { resourceUri: "ui://unknown" }]) {
+    p.context.result = result({}, {}, ui);
+    assert.throws(() => p.run("validateAppResult(result)"), /not recognized/);
+  }
+  p.context.result = { content: [{ type: "text", text: "no UI" }] };
+  assert.throws(() => p.run("validateAppResult(result)"));
+  p.context.result = { _meta: { ui: { resourceUri: "ui://form-factor/equipment-fit" } } };
+  assert.throws(() => p.run("validateAppResult(result)"), /no MCP Apps UI resource/);
+});
+test("sandbox proxy receives the View HTML once, and tool-result omits it", async () => {
+  const p = panel();
+  await flush();
+  p.context.appResult = {
+    content: [
+      { type: "text", text: "ready" },
+      { type: "resource", resource: { uri: "ui://form-factor/equipment-fit", text: "<html>" } },
+    ],
+    structuredContent: { revision: 1 },
+  };
+  p.run("appDescriptor = { html: '<html>', allowedPageTools: [] }; appResult = this.appResult");
+  const frame = p.run("elements.frame.contentWindow");
+  const ready = { jsonrpc: "2.0", method: "ui/notifications/sandbox-proxy-ready", params: {} };
+  await p.events.message({ source: frame, data: ready });
+  await p.events.message({ source: frame, data: ready });
+  const delivered = p.messages.filter(
+    (m) => m.method === "ui/notifications/sandbox-resource-ready",
+  );
+  assert.equal(delivered.length, 1);
+  assert.equal(delivered[0].params.html, "<html>");
+  p.run("sendToolData(appResult)");
+  const toolResult = p.messages.find((m) => m.method === "ui/notifications/tool-result");
+  assert.deepEqual(plain(toolResult.params.content), [{ type: "text", text: "ready" }]);
 });
 test("draft edits survive notifications, keyboard repeats accumulate, and writes serialize", async () => {
   const document = dom();
@@ -358,14 +410,110 @@ test("opening errors are visible; closing discards a late opening result", async
   assert.equal(stale.run("pageReady"), true);
 });
 
-test("page registers all three tools through document.modelContext", async () => {
+test("page registers all three tools and returns the View as an embedded resource", async () => {
   const p = page();
   await flush();
   assert.deepEqual(
     p.registered.map((tool) => tool.name),
     ["gym_open_fit_sidecar", "gym_update_profile", "gym_set_preferences"],
   );
+  p.run('globalThis.FIT_SIDECAR_HTML = "<!doctype html><title>View</title>"');
   const result = await p.registered[0].execute({});
-  assert.equal(result._meta.ui.resourceUri, "ui://form-factor/equipment-fit");
+  const resource = result.content.find((block) => block.type === "resource").resource;
+  assert.equal(resource.uri, "ui://form-factor/equipment-fit");
+  assert.equal(resource.mimeType, "text/html;profile=mcp-app");
+  assert.equal(resource.text, "<!doctype html><title>View</title>");
+  assert.deepEqual(plain(result._meta.ui), { resourceUri: "ui://form-factor/equipment-fit" });
+  assert.deepEqual(plain(result._meta["me.kulikowski/webmcp-apps"].allowedPageTools), [
+    "gym_update_profile",
+    "gym_set_preferences",
+  ]);
   assert.equal(result.structuredContent.revision, 1);
+});
+test("server inlines the sidecar into one self-contained HTML document", async () => {
+  const server = source("server.mjs");
+  const start = server.indexOf("function sidecarHtml()");
+  const body = server.slice(start, server.indexOf("\napp.get(", start));
+  const sidecarHtml = new Function(
+    "readFileSync",
+    "import_meta_url",
+    `${body.replaceAll("import.meta.url", "import_meta_url")}; return sidecarHtml;`,
+  )(readFileSync, new URL("../server.mjs", import.meta.url).href)();
+  assert.doesNotMatch(sidecarHtml, /href="\/fit-sidecar\.css"|src="\/fit-sidecar\.js"/);
+  assert.match(sidecarHtml, /<style>[\s\S]+<\/style>/);
+  assert.match(sidecarHtml, /ui\/initialize/);
+});
+test("server inlining tolerates attribute formatting and escapes </script", () => {
+  const server = source("server.mjs");
+  const start = server.indexOf("function sidecarHtml()");
+  const body = server.slice(start, server.indexOf("\napp.get(", start));
+  const files = {
+    "fit-sidecar.css": "body { color: red; }",
+    "fit-sidecar.js": 'const tag = "</script>";',
+    "fit-sidecar.html":
+      "<head><link href='/fit-sidecar.css' rel='stylesheet'></head>" +
+      "<body><script defer src='/fit-sidecar.js'></script></body>",
+  };
+  const readFileSync = (url) => files[url.pathname.split("/").pop()];
+  const html = new Function(
+    "readFileSync",
+    "import_meta_url",
+    `${body.replaceAll("import.meta.url", "import_meta_url")}; return sidecarHtml;`,
+  )(readFileSync, "file:///repo/server.mjs")();
+  assert.equal(html.match(/<\/script/g).length, 1);
+  assert.match(html, /<style>\nbody \{ color: red; \}\n<\/style>/);
+  assert.match(html, /const tag = "<\\\/script>";/);
+});
+function proxy() {
+  const events = {};
+  const toHost = [];
+  const toView = [];
+  const written = [];
+  const parent = { postMessage: (message, origin) => toHost.push({ message, origin }) };
+  const inner = {
+    setAttribute(name, value) {
+      this[name] = value;
+    },
+    contentWindow: { postMessage: (message) => toView.push(message) },
+    set srcdoc(html) {
+      written.push(html);
+    },
+  };
+  const context = vm.createContext({
+    window: { parent, addEventListener: (type, fn) => (events[type] = fn) },
+    location: { origin: "chrome-extension://abc" },
+    document: { title: "View", createElement: () => inner, body: { append() {} } },
+  });
+  vm.runInContext(source("extension/app-host.js"), context);
+  const fromHost = (data, origin = "chrome-extension://abc") =>
+    events.message({ source: parent, origin, data });
+  const fromView = (data) => events.message({ source: inner.contentWindow, origin: "null", data });
+  return { inner, toHost, toView, written, fromHost, fromView };
+}
+test("sandbox proxy loads the View in an inner iframe and relays non-sandbox messages", () => {
+  const x = proxy();
+  assert.equal(x.inner.sandbox, "allow-scripts");
+  assert.deepEqual(plain(x.toHost), [
+    {
+      message: { jsonrpc: "2.0", method: "ui/notifications/sandbox-proxy-ready", params: {} },
+      origin: "chrome-extension://abc",
+    },
+  ]);
+  const ready = (html) => ({
+    jsonrpc: "2.0",
+    method: "ui/notifications/sandbox-resource-ready",
+    params: { html },
+  });
+  x.fromHost(ready("<p>evil</p>"), "http://localhost:8787");
+  x.fromHost(ready("<p>view</p>"));
+  x.fromHost(ready("<p>again</p>"));
+  assert.deepEqual(x.written, ["<p>view</p>"]);
+  assert.equal(x.toView.length, 0);
+  const result = { jsonrpc: "2.0", method: "ui/notifications/tool-result", params: {} };
+  x.fromHost(result);
+  assert.deepEqual(plain(x.toView), [result]);
+  const call = { jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "x" } };
+  x.fromView(call);
+  x.fromView({ jsonrpc: "2.0", method: "ui/notifications/sandbox-proxy-ready", params: {} });
+  assert.deepEqual(plain(x.toHost.slice(1)), [{ message: call, origin: "chrome-extension://abc" }]);
 });

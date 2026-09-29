@@ -3,7 +3,7 @@
   "minimum_chrome_version": "114",
   "name": "Form / Factor Agent",
   "version": "1.0.0",
-  "description": "Renders the MCP-App-like sidecar returned by a WebMCP tool and writes results back to the page.",
+  "description": "Renders the MCP Apps UI resource returned by a WebMCP tool and writes results back to the page.",
   "action": {
     "default_title": "Open training agent"
   },
@@ -19,11 +19,15 @@
     }
   ],
   "content_security_policy": {
-    "extension_pages": "script-src 'self'; object-src 'self'; frame-src http://localhost:8787"
+    "extension_pages": "script-src 'self'; object-src 'self'; frame-src 'self'",
+    "sandbox": "sandbox allow-scripts; default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' data:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'none'"
   },
   "host_permissions": ["http://localhost:8787/*"],
   "permissions": ["activeTab", "scripting", "sidePanel", "tabs"],
   "side_panel": {
     "default_path": "sidepanel.html"
+  },
+  "sandbox": {
+    "pages": ["app-host.html"]
   }
 }
